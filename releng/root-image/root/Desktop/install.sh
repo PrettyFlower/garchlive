@@ -1,16 +1,22 @@
 #!/bin/bash
 
-CONF_FILE="install.config"
-for i in `cat $CONF_FILE | grep '^[^#].*'`
+set -e
+
+CONF_FILE="install.conf"
+while read i
 do
-	var=`echo "$i" | awk -F"=" '{print $1}'`
-	param=`echo "$i" | awk -F"=" '{print $2}'`
-	if [ "$param" == "" ]; then
-		echo "You must set "$var" in install.config."
-		exit 1
+	comment=`echo $i | sed -e 's/#.*//'`
+	if [ "$comment" != "" ]; then
+		echo $i
+		var=`echo "$i" | awk -F"=" '{print $1}'`
+		param=`echo "$i" | awk -F"=" '{print $2}'`
+		if [ "$param" == "" ]; then
+			echo "You must set "$var" in install.conf."
+			exit 1
+		fi
+		eval $var='$param'
 	fi
-	eval $var=$param
-done
+done < $CONF_FILE
 
 echo "Starting..."
 
@@ -27,50 +33,7 @@ mount $home_partition /mnt/home
 
 # step 3: install base packages
 echo "Installing packages..."
-pacstrap /mnt \
-base \
-base-devel \
-ntp \
-dbus \
-networkmanager \
-most \
-zsh \
-xf86-video-vesa \
-virtualbox-archlinux-additions \
-xfce4 \
-gparted \
-gedit \
-pidgin \
-firefox \
-flashplugin \
-yaourt \
- \
-xorg-appres \
-xorg-bdftopcf \
-xorg-docs \
-xorg-font-util \
-xorg-font-utils \
-xorg-fonts-100dpi \
-xorg-fonts-75dpi \
-xorg-fonts-alias \
-xorg-fonts-encodings \
-xorg-fonts-misc \
-xorg-iceauth \
-xorg-luit \
-xorg-mkfontdir \
-xorg-mkfontscale \
-xorg-server \
-xorg-server-common \
-xorg-setxkbmap \
-xorg-xauth \
-xorg-xinit \
-xorg-xkbcomp \
-xorg-xmessage \
-xorg-xprop \
-xorg-xrandr \
-xorg-xrdb \
-xorg-xset \
-xorg-xsetroot
+pacstrap /mnt base base-devel
 
 # step 4: install bootloader package
 echo "Installing bootloader..."
@@ -79,15 +42,17 @@ pacstrap /mnt $bootloader_package
 # step 5: configure
 echo "Configuring..."
 genfstab -p /mnt >> /mnt/etc/fstab
-arch-chroot /mnt /bin/bash -c "echo \"$hostname\" > /etc/hostname"
-arch-chroot /mnt /bin/bash -c "ln -s /usr/share/zoneinfo/$locale_zone/$locale_subzone /etc/localtime"
+echo $hostname > /mnt/etc/hostname
+ln -s /mnt/usr/share/zoneinfo/$locale_zone/$locale_subzone /mnt/etc/localtime
+safe_locale_preference=$(printf "%s\n" "$locale_preference" | sed 's/[][\.*^$/]/\\&/g')
+sed -i "s/#$safe_locale_preference/$safe_locale_preference/" /mnt/etc/locale.gen
 arch-chroot /mnt /bin/bash -c "locale-gen"
 arch-chroot /mnt /bin/bash -c "mkinitcpio -p linux"
 
 # step 5.1: configure bootloader
 echo "Configuring bootloader..."
 arch-chroot /mnt /bin/bash -c "modprobe dm-mod"
-arch-chroot /mnt /bin/bash -c "grub-install --debug /dev/sda"
+arch-chroot /mnt /bin/bash -c "grub-install /dev/sda"
 arch-chroot /mnt /bin/bash -c "grub-mkconfig -o /boot/grub/grub.cfg"
 
 echo "Set new root password:"
