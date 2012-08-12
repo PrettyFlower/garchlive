@@ -6,19 +6,29 @@ CONF_FILE="install.conf"
 while read i
 do
 	comment=`echo $i | sed -e 's/#.*//'`
+	curr_attr=""
 	if [ "$comment" != "" ]; then
-		echo $i
-		var=`echo "$i" | awk -F"=" '{print $1}'`
-		param=`echo "$i" | awk -F"=" '{print $2}'`
-		if [ "$param" == "" ]; then
-			echo "You must set "$var" in install.conf."
-			exit 1
+		attr_type=`echo "$i" | awk 'NR>1{print $1}' RS=[ FS=]`
+		if [ "$attr_type" != "" ]; then
+			curr_attr=( $(eval "echo \$$attr_type") )
+			echo $curr_attr
+		else
+			var=`echo "$i" | awk -F"=" '{print $1}'`
+			param=`echo "$i" | awk -F"=" '{print $2}'`
+			#echo $i
+			echo $curr_attr
+			if [ "$param" == "" ] && [ "$curr_attr"=="required" ]; then
+				echo "You must set "$var" in install.conf."
+				exit 1
+			fi
+			eval $var='$param'
 		fi
-		eval $var='$param'
 	fi
 done < $CONF_FILE
 
 echo "Starting..."
+
+exit 1
 
 # step 1: use gparted (already installed) to partition hard drive
 # this setup assumes boot/root/home
