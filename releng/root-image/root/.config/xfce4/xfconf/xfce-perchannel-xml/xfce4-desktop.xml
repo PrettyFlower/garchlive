@@ -6,6 +6,14 @@
       <property name="monitor0" type="empty">
         <property name="image-path" type="string" value="/root/arch-themes/arch-wallpapers/arch-light.png"/>
         <property name="image-style" type="int" value="4"/>
+        <property name="last-image" type="string" value="/root/arch-themes/arch-wallpapers/arch-light.png"/>
+        <property name="last-single-image" type="string" value="/root/arch-themes/arch-wallpapers/arch-light.png"/>
+      </property>
+      <property name="monitor1" type="empty">
+        <property name="image-path" type="string" value="/root/arch-themes/arch-wallpapers/arch-light.png"/>
+	<property name="image-style" type="int" value="4"/>
+        <property name="last-image" type="string" value="/root/arch-themes/arch-wallpapers/arch-light.png"/>
+        <property name="last-single-image" type="string" value="/root/arch-themes/arch-wallpapers/arch-light.png"/>
       </property>
     </property>
   </property>
