@@ -55,6 +55,7 @@ xf86-video-nouveau
 networkmanager
 most
 zsh
+python
 virtualbox-archlinux-additions
 xfce4
 gparted
