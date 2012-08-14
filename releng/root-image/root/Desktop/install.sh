@@ -17,7 +17,7 @@ do
 			if [ "$param" == "" ] && [ "$curr_attr" == "required" ]; then
 				echo "You must set "$var" in install.conf."
 				exit 1
-			elif [ "$var" == "efi_partition" ] && [ -n "$param" ] && [ "$bootloader_package" == "grub-efi-x86_64" ]; then
+			elif [ "$var" == "efi_partition" ] && [ "$param" == "" ] && [ "$bootloader_package" == "grub-efi-x86_64" ]; then
 				echo "You must specify the efi partition if you are using grub-efi-x86_64."
 				exit 1
 			fi
@@ -80,9 +80,11 @@ arch-chroot /mnt /bin/bash -c "grub-mkconfig -o /boot/grub/grub.cfg"
 echo "Set new root password:"
 arch-chroot /mnt /bin/bash -c "passwd"
 
-arch-chroot /mnt /bin/bash -c "useradd -m -g users -G audio,lp,optical,storage,video,wheel,games,power,scanner -s /bin/bash $default_user"
-echo "Set default user password:"
-arch-chroot /mnt /bin/bash -c "passwd $default_user"
+if [ -n "$default_user" ]; then
+	arch-chroot /mnt /bin/bash -c "useradd -m -g users -G audio,lp,optical,storage,video,wheel,games,power,scanner -s /bin/bash $default_user"
+	echo "Set default user password:"
+	arch-chroot /mnt /bin/bash -c "passwd $default_user"
+fi
 
 # step 6: unmount/cleanup
 echo "Unmounting..."
