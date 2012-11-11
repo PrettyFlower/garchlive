@@ -25,12 +25,12 @@ setup_workdir() {
 # Base installation (root-image)
 make_basefs() {
     mkarchiso ${verbose} -w "${work_dir}" -C "${pacman_conf}" -D "${install_dir}" init
-    mkarchiso ${verbose} -w "${work_dir}" -C "${pacman_conf}" -D "${install_dir}" -p "memtest86+ mkinitcpio-nfs-utils nbd curl" install
+    mkarchiso ${verbose} -w "${work_dir}" -C "${pacman_conf}" -D "${install_dir}" -p "memtest86+ mkinitcpio-nfs-utils nbd" install
 }
 
 # Additional packages (root-image)
 make_packages() {
-    mkarchiso ${verbose} -w "${work_dir}" -C "${pacman_conf}" -D "${install_dir}" -p "$(grep -v ^# ${script_path}/packages.${arch})" install
+    mkarchiso ${verbose} -w "${work_dir}" -C "${pacman_conf}" -D "${install_dir}" -p "$(grep -h -v ^# ${script_path}/packages.{both,${arch}})" install
 }
 
 # Copy mkinitcpio archiso hooks (root-image)
@@ -43,7 +43,6 @@ make_setup_mkinitcpio() {
         done
         cp /usr/lib/initcpio/install/archiso_kms ${work_dir}/root-image/usr/lib/initcpio/install
         cp /usr/lib/initcpio/archiso_shutdown ${work_dir}/root-image/usr/lib/initcpio
-        cp /usr/lib/initcpio/archiso_pxe_nbd ${work_dir}/root-image/usr/lib/initcpio
         cp ${script_path}/mkinitcpio.conf ${work_dir}/root-image/etc/mkinitcpio-archiso.conf
         : > ${work_dir}/build.${FUNCNAME}
    fi
@@ -66,13 +65,38 @@ make_boot() {
     fi
 }
 
-# Prepare EFI "El Torito" boot image (using Linux >= 3.3 EFI boot stub)
-make_boot_efi() {
+make_efi() {
     if [[ ! -e ${work_dir}/build.${FUNCNAME} ]]; then
         if [[ ${arch} == "x86_64" ]]; then
+
+            mkdir -p ${work_dir}/iso/EFI/boot
+            cp ${work_dir}/root-image/usr/lib/gummiboot/gummibootx64.efi ${work_dir}/iso/EFI/boot/bootx64.efi
+
+            mkdir -p ${work_dir}/iso/loader/entries
+            cp ${script_path}/efiboot/loader/loader.conf ${work_dir}/iso/loader/
+            cp ${script_path}/efiboot/loader/entries/uefi-shell-v2-x86_64.conf ${work_dir}/iso/loader/entries/
+            cp ${script_path}/efiboot/loader/entries/uefi-shell-v1-x86_64.conf ${work_dir}/iso/loader/entries/
+
+            sed "s|%ARCHISO_LABEL%|${iso_label}|g;
+                 s|%INSTALL_DIR%|${install_dir}|g" ${script_path}/efiboot/loader/entries/archiso-x86_64-usb.conf > ${work_dir}/iso/loader/entries/archiso-x86_64.conf
+
+            # EFI Shell 2.0 for UEFI 2.3+ ( http://sourceforge.net/apps/mediawiki/tianocore/index.php?title=UEFI_Shell )
+            wget -O ${work_dir}/iso/EFI/shellx64_v2.efi https://edk2.svn.sourceforge.net/svnroot/edk2/trunk/edk2/ShellBinPkg/UefiShell/X64/Shell.efi
+            # EFI Shell 1.0 for non UEFI 2.3+ ( http://sourceforge.net/apps/mediawiki/tianocore/index.php?title=Efi-shell )
+            wget -O ${work_dir}/iso/EFI/shellx64_v1.efi https://edk2.svn.sourceforge.net/svnroot/edk2/trunk/edk2/EdkShellBinPkg/FullShell/X64/Shell_Full.efi
+
+        fi
+        : > ${work_dir}/build.${FUNCNAME}
+    fi
+}
+
+make_efiboot() {
+    if [[ ! -e ${work_dir}/build.${FUNCNAME} ]]; then
+        if [[ ${arch} == "x86_64" ]]; then
+
             mkdir -p ${work_dir}/iso/EFI/archiso
-            dd of=${work_dir}/iso/EFI/archiso/efiboot.img bs=1 seek=20M count=0
-            mkfs.vfat ${work_dir}/iso/EFI/archiso/efiboot.img
+            truncate -s 31M ${work_dir}/iso/EFI/archiso/efiboot.img
+            mkfs.vfat -n ARCHISO_EFI ${work_dir}/iso/EFI/archiso/efiboot.img
 
             mkdir -p ${work_dir}/efiboot
             mount ${work_dir}/iso/EFI/archiso/efiboot.img ${work_dir}/efiboot
@@ -81,23 +105,22 @@ make_boot_efi() {
             cp ${work_dir}/iso/${install_dir}/boot/x86_64/vmlinuz ${work_dir}/efiboot/EFI/archiso/vmlinuz.efi
             cp ${work_dir}/iso/${install_dir}/boot/x86_64/archiso.img ${work_dir}/efiboot/EFI/archiso/archiso.img
 
-            # There are plans to support command line options via a config file (not yet in linux-3.3)
-            #cp ${work_dir}/iso/${install_dir}/boot/x86_64/vmlinuz ${work_dir}/efiboot/EFI/boot/bootx64.efi
-            #cp ${work_dir}/iso/${install_dir}/boot/x86_64/archiso.img ${work_dir}/efiboot/EFI/boot/linux.img
-            #echo "archisolabel=${iso_label} initrd=\EFI\boot\linux.img" | iconv -f ascii -t ucs2 > ${work_dir}/iso/EFI/boot/linux.conf
-
-            # For now, provide an EFI-shell until 'linux.conf' hits mainline.
             mkdir -p ${work_dir}/efiboot/EFI/boot
-            # EFI Shell 2.0 for UEFI 2.3+ ( http://sourceforge.net/apps/mediawiki/tianocore/index.php?title=UEFI_Shell )
-            #wget -O ${work_dir}/efiboot/EFI/boot/bootx64.efi https://edk2.svn.sourceforge.net/svnroot/edk2/trunk/edk2/ShellBinPkg/UefiShell/X64/Shell.efi
-            # EFI Shell 1.0 for non UEFI 2.3+ ( http://sourceforge.net/apps/mediawiki/tianocore/index.php?title=Efi-shell )
-            wget -O ${work_dir}/efiboot/EFI/boot/bootx64.efi https://edk2.svn.sourceforge.net/svnroot/edk2/trunk/edk2/EdkShellBinPkg/FullShell/X64/Shell_Full.efi
+            cp ${work_dir}/root-image/usr/lib/gummiboot/gummibootx64.efi ${work_dir}/efiboot/EFI/boot/bootx64.efi
 
-            # Add an EFI shell script for automatic boot if ESC-key is not pressed within 5 seconds timeout.
+            mkdir -p ${work_dir}/efiboot/loader/entries
+            cp ${script_path}/efiboot/loader/loader.conf ${work_dir}/efiboot/loader/
+            cp ${script_path}/efiboot/loader/entries/uefi-shell-v2-x86_64.conf ${work_dir}/efiboot/loader/entries/
+            cp ${script_path}/efiboot/loader/entries/uefi-shell-v1-x86_64.conf ${work_dir}/efiboot/loader/entries/
+
             sed "s|%ARCHISO_LABEL%|${iso_label}|g;
-                 s|%INSTALL_DIR%|${install_dir}|g" ${script_path}/efiboot/EFI/boot/startup.nsh > ${work_dir}/efiboot/EFI/boot/startup.nsh
+                 s|%INSTALL_DIR%|${install_dir}|g" ${script_path}/efiboot/loader/entries/archiso-x86_64-cd.conf > ${work_dir}/efiboot/loader/entries/archiso-x86_64.conf
+
+            cp ${work_dir}/iso/EFI/shellx64_v2.efi ${work_dir}/efiboot/EFI/
+            cp ${work_dir}/iso/EFI/shellx64_v1.efi ${work_dir}/efiboot/EFI/
 
             umount ${work_dir}/efiboot
+
         fi
         : > ${work_dir}/build.${FUNCNAME}
     fi
@@ -141,25 +164,14 @@ make_isolinux() {
 make_customize_root_image() {
     if [[ ! -e ${work_dir}/build.${FUNCNAME} ]]; then
         cp -af ${script_path}/root-image ${work_dir}
-        cp -aT ${work_dir}/root-image/etc/skel/ ${work_dir}/root-image/root/
-        ln -sf /usr/share/zoneinfo/UTC ${work_dir}/root-image/etc/localtime
-        chmod 750 ${work_dir}/root-image/etc/sudoers.d
-        chmod 440 ${work_dir}/root-image/etc/sudoers.d/g_wheel
-        mkdir -p ${work_dir}/root-image/etc/pacman.d
-        wget -O ${work_dir}/root-image/etc/pacman.d/mirrorlist 'https://www.archlinux.org/mirrorlist/?country=all&protocol=http&use_mirror_status=on'
-        lynx -dump -nolist 'https://wiki.archlinux.org/index.php/Installation_Guide?action=render' >> ${work_dir}/root-image/root/install.txt
-        sed -i "s/#Server/Server/g" ${work_dir}/root-image/etc/pacman.d/mirrorlist
+
         patch ${work_dir}/root-image/usr/bin/pacman-key < ${script_path}/pacman-key-4.0.3_unattended-keyring-init.patch
-        sed -i 's/#\(en_US\.UTF-8\)/\1/' ${work_dir}/root-image/etc/locale.gen
-        mkarchiso ${verbose} -w "${work_dir}" -C "${pacman_conf}" -D "${install_dir}" \
-            -r 'locale-gen' \
-            run
-        mkarchiso ${verbose} -w "${work_dir}" -C "${pacman_conf}" -D "${install_dir}" \
-            -r 'usermod -s /bin/zsh root' \
-            run
-        mkarchiso ${verbose} -w "${work_dir}" -C "${pacman_conf}" -D "${install_dir}" \
-            -r 'useradd -m -p "" -g users -G "audio,disk,optical,wheel" -s /bin/zsh arch' \
-            run
+        wget -O ${work_dir}/root-image/etc/pacman.d/mirrorlist 'https://www.archlinux.org/mirrorlist/?country=all&protocol=http&use_mirror_status=on'
+
+        lynx -dump -nolist 'https://wiki.archlinux.org/index.php/Installation_Guide?action=render' >> ${work_dir}/root-image/root/install.txt
+
+        mkarchiso ${verbose} -w "${work_dir}" -C "${pacman_conf}" -D "${install_dir}" -r '/root/customize_root_image.sh' run
+        rm ${work_dir}/root-image/root/customize_root_image.sh
         : > ${work_dir}/build.${FUNCNAME}
     fi
 }
@@ -267,7 +279,8 @@ make_common_single() {
     make_packages
     make_setup_mkinitcpio
     make_boot
-    make_boot_efi
+    make_efi
+    make_efiboot
     make_syslinux
     make_isolinux
     make_customize_root_image

@@ -1,4 +1,0 @@
-#!/bin/bash
-
-chsh -s $(which zsh) root
-chmod u+x /root/Desktop/install.sh

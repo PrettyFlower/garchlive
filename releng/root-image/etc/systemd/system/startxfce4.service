@@ -1,0 +1,8 @@
+[Unit]
+Description=Start XFCE
+
+[Service]
+ExecStart=/usr/bin/startxfce4
+
+[Install]
+WantedBy=graphical.target
